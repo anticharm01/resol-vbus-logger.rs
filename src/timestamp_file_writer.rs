@@ -4,7 +4,6 @@ use std::io::{Error, ErrorKind, Result, Write};
 
 use resol_vbus::chrono::{DateTime, TimeZone};
 
-
 pub struct TimestampFileWriter<Tz: TimeZone> {
     filename_pattern: String,
     timestamp: DateTime<Tz>,
@@ -13,8 +12,10 @@ pub struct TimestampFileWriter<Tz: TimeZone> {
     current_file: Option<File>,
 }
 
-
-impl<Tz: TimeZone> TimestampFileWriter<Tz> where Tz::Offset: Display {
+impl<Tz: TimeZone> TimestampFileWriter<Tz>
+where
+    Tz::Offset: Display,
+{
     pub fn new(filename_pattern: String, timestamp: DateTime<Tz>) -> TimestampFileWriter<Tz> {
         TimestampFileWriter {
             filename_pattern,
@@ -33,10 +34,7 @@ impl<Tz: TimeZone> TimestampFileWriter<Tz> where Tz::Offset: Display {
     }
 
     pub fn filename(&self) -> Option<&str> {
-        match self.current_filename {
-            None => None,
-            Some(ref filename) => Some(filename),
-        }
+        self.current_filename.as_ref().map(|filename| filename as _)
     }
 
     fn check_timestamp_change(&mut self) -> Result<bool> {
@@ -45,7 +43,10 @@ impl<Tz: TimeZone> TimestampFileWriter<Tz> where Tz::Offset: Display {
 
             let filename = Some(self.timestamp.format(&self.filename_pattern).to_string());
             if self.current_filename != filename {
-                let file = OpenOptions::new().append(true).create(true).open(filename.as_ref().unwrap())?;
+                let file = OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(filename.as_ref().unwrap())?;
 
                 self.current_filename = filename;
                 self.current_file = Some(file);
@@ -60,8 +61,10 @@ impl<Tz: TimeZone> TimestampFileWriter<Tz> where Tz::Offset: Display {
     }
 }
 
-
-impl<Tz: TimeZone> Write for TimestampFileWriter<Tz> where Tz::Offset: Display {
+impl<Tz: TimeZone> Write for TimestampFileWriter<Tz>
+where
+    Tz::Offset: Display,
+{
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.check_timestamp_change()?;
 

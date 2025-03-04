@@ -1,10 +1,10 @@
 use std::fs::File;
 use std::io::Read;
 
+use anyhow::{anyhow, Context};
 use resol_vbus::SpecificationFile;
 
-use error::Result;
-
+use crate::error::Result;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -37,7 +37,6 @@ pub struct Config {
     pub vsf_filename: Option<String>,
 }
 
-
 impl Config {
     pub fn load() -> Result<Config> {
         let mut file = File::open("config.toml")?;
@@ -54,12 +53,10 @@ impl Config {
     pub fn load_spec_file(&self) -> Result<SpecificationFile> {
         let spec_file = match &self.vsf_filename {
             Some(filename) => {
-                let bytes = std::fs::read(filename)?;
-                match SpecificationFile::from_bytes(&bytes) {
-                    Ok(spec_file) => spec_file,
-                    Err(err) => return Err(format!("Unable to parse VSF file: {:?}", err).into()),
-                }
-            },
+                let bytes = std::fs::read(filename).context("Unable to read VSF file")?;
+                SpecificationFile::from_bytes(&bytes)
+                    .map_err(|err| anyhow!("Unable to parse VSF file: {:?}", err))?
+            }
             None => SpecificationFile::new_default(),
         };
         Ok(spec_file)

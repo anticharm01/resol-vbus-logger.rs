@@ -48,7 +48,7 @@
 #![warn(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![deny(warnings)]
-
+#![allow(clippy::manual_range_contains)]
 
 extern crate env_logger;
 extern crate image;
@@ -63,7 +63,6 @@ extern crate serialport;
 extern crate sqlite;
 extern crate toml;
 
-
 mod config;
 mod csv_generator;
 mod error;
@@ -74,39 +73,35 @@ mod sqlite_logger;
 mod tick_source;
 mod timestamp_file_writer;
 
-
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use resol_vbus::{Specification, Language};
+use anyhow::anyhow;
 use resol_vbus::{
-    chrono::prelude::*,
-    Data,
-    DataSet,
-    Header,
-    LiveDataStream,
-    Packet,
-    ReadWithTimeout,
-    TcpConnector,
-    ToPacketId,
+    chrono::prelude::*, Data, DataSet, Header, LiveDataStream, Packet, ReadWithTimeout,
+    TcpConnector, ToPacketId,
 };
-
+use resol_vbus::{Language, Specification};
 
 use config::Config;
 use csv_generator::CsvGenerator;
-use error::{Error, Result};
+use error::Result;
 use live_data_text_generator::LiveDataTextGenerator;
 use png_generator::PngGenerator;
 use serial_port_stream::SerialPortStream;
 use sqlite_logger::SqliteLogger;
 use tick_source::TickSource;
 
-
-fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(config: &Config, mut lds: LiveDataStream<R, W>) -> Result<()> {
+fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(
+    config: &Config,
+    mut lds: LiveDataStream<R, W>,
+) -> Result<()> {
     let mut data_set = DataSet::new();
 
     for packet_id in config.known_packet_ids.iter() {
-        let packet_id = packet_id.to_packet_id()?;
+        let packet_id = packet_id
+            .to_packet_id()
+            .map_err(|err| anyhow!("Unable to get packet ID: {err:?}"))?;
         let packet = Packet {
             header: Header {
                 timestamp: UTC::now(),
@@ -127,13 +122,13 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(config: &Config, mut ld
     let mut data_set_settled_count = 0;
 
     debug!("Initializing PNG");
-    let png_generator = PngGenerator::from_config(&config)?;
+    let png_generator = PngGenerator::from_config(config)?;
     debug!("Initializing CSV");
-    let mut csv_generator = CsvGenerator::from_config(&config)?;
+    let mut csv_generator = CsvGenerator::from_config(config)?;
     debug!("Initializing Live Data Text");
-    let mut live_data_text_generator = LiveDataTextGenerator::from_config(&config)?;
+    let mut live_data_text_generator = LiveDataTextGenerator::from_config(config)?;
     debug!("Initializing SQLite");
-    let mut sqlite_logger = SqliteLogger::from_config(&config)?;
+    let mut sqlite_logger = SqliteLogger::from_config(config)?;
 
     let now = UTC::now();
 
@@ -147,32 +142,24 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(config: &Config, mut ld
 
     loop {
         let now = UTC::now();
-        if png_tick_source.process(now) {
-            if data_set_is_settled {
-                debug!("PNG Tick");
-                png_generator.generate(&data_set, &now)?;
-            }
+        if png_tick_source.process(now) && data_set_is_settled {
+            debug!("PNG Tick");
+            png_generator.generate(&data_set, &now)?;
         }
 
-        if csv_tick_source.process(now) {
-            if data_set_is_settled {
-                debug!("CSV tick");
-                csv_generator.generate(&data_set, &now)?;
-            }
+        if csv_tick_source.process(now) && data_set_is_settled {
+            debug!("CSV tick");
+            csv_generator.generate(&data_set, &now)?;
         }
 
-        if live_data_text_tick_source.process(now) {
-            if data_set_is_settled {
-                debug!("Live Data Text tick");
-                live_data_text_generator.generate(&data_set, &now)?;
-            }
+        if live_data_text_tick_source.process(now) && data_set_is_settled {
+            debug!("Live Data Text tick");
+            live_data_text_generator.generate(&data_set, &now)?;
         }
 
-        if sqlite_tick_source.process(now) {
-            if data_set_is_settled {
-                debug!("SQlite tick");
-                sqlite_logger.log(&data_set, &now)?;
-            }
+        if sqlite_tick_source.process(now) && data_set_is_settled {
+            debug!("SQlite tick");
+            sqlite_logger.log(&data_set, &now)?;
         }
 
         if let Some(data) = lds.receive(500)? {
@@ -195,19 +182,34 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(config: &Config, mut ld
                     data_set_settled_count = 0;
                 } else if data_set_settled_count < data_set_settled_max_count {
                     data_set_settled_count += 1;
-                    let percent = 100.0f32 * data_set_settled_count as f32 / data_set_settled_max_count as f32;
-                    debug!("Settling: {} / {} -> {:.2}%", data_set_settled_count, data_set_settled_max_count, percent);
+                    let percent = 100.0f32 * data_set_settled_count as f32
+                        / data_set_settled_max_count as f32;
+                    debug!(
+                        "Settling: {} / {} -> {:.2}%",
+                        data_set_settled_count, data_set_settled_max_count, percent
+                    );
                 } else {
                     data_set_is_settled = true;
 
                     let mut sorted_data_set = data_set.clone();
                     sorted_data_set.sort();
-                    debug!("Settled {:?}", sorted_data_set.iter().map(|data| data.id_string()).collect::<Vec<_>>());
+                    debug!(
+                        "Settled {:?}",
+                        sorted_data_set
+                            .iter()
+                            .map(|data| data.id_string())
+                            .collect::<Vec<_>>()
+                    );
 
                     let spec_file = config.load_spec_file()?;
                     let spec = Specification::from_file(spec_file, Language::De);
                     for field in spec.fields_in_data_set(&sorted_data_set) {
-                        debug!("  - {}: {}: {}", field.packet_field_id().packet_field_id_string(), field.packet_spec().name, field.field_spec().name);
+                        debug!(
+                            "  - {}: {}: {}",
+                            field.packet_field_id().packet_field_id_string(),
+                            field.packet_spec().name,
+                            field.field_spec().name
+                        );
                     }
                 }
             }
@@ -216,12 +218,11 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(config: &Config, mut ld
         if let Some(timeout) = config.timeout {
             let diff = now.signed_duration_since(last_data_received);
             if diff.num_seconds() > timeout {
-                return Err("Timeout while receiving live data".into());
+                return Err(anyhow!("Timeout while receiving live data"));
             }
         }
     }
 }
-
 
 fn run_main() -> Result<()> {
     env_logger::init();
@@ -256,7 +257,7 @@ fn run_main() -> Result<()> {
         let mut tcp_connector = TcpConnector::new(stream);
         tcp_connector.via_tag = config.via_tag.clone();
         tcp_connector.password = config.password.clone().unwrap_or("vbus".to_string());
-        tcp_connector.channel = config.channel.clone();
+        tcp_connector.channel = config.channel;
         tcp_connector.connect()?;
 
         let reader = tcp_connector.into_inner();
@@ -269,10 +270,9 @@ fn run_main() -> Result<()> {
 
         Ok(())
     } else {
-        Err(Error::from("Unexpected connection method"))
+        Err(anyhow!("Unexpected connection method"))
     }
 }
-
 
 fn main() {
     run_main().unwrap();

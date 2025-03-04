@@ -1,11 +1,9 @@
 use resol_vbus::chrono::prelude::*;
 
-
 pub struct TickSource {
     interval: i64,
     last_interval: i64,
 }
-
 
 impl TickSource {
     pub fn new(interval: i64, now: DateTime<UTC>) -> TickSource {

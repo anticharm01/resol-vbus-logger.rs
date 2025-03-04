@@ -2,9 +2,11 @@
 name = "logger"
 version = "0.3.0"
 authors = ["Daniel Wippermann <Daniel.Wippermann@gmail.com>"]
+edition = "2021"
 
 [dependencies]
-env_logger = "0.9.0"
+anyhow = "1.0.75"
+env_logger = "0.10.0"
 image = "0.24.2"
 imageproc = "0.23.0"
 log = "0.4.14"
@@ -15,4 +17,4 @@ serde = "1.0.106"
 serde_derive = "1.0.106"
 serialport = "4.1.0"
 sqlite = "0.26.0"
-toml = "0.5.8"
+toml = "0.8.2"

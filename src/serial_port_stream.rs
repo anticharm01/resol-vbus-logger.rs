@@ -1,13 +1,11 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use std::time::Duration;
 
-use serialport::{SerialPort};
+use serialport::SerialPort;
 
 use resol_vbus::ReadWithTimeout;
 
-
 pub struct SerialPortStream(Box<dyn SerialPort>);
-
 
 impl SerialPortStream {
     pub fn new(port: Box<dyn SerialPort>) -> SerialPortStream {
@@ -15,13 +13,11 @@ impl SerialPortStream {
     }
 }
 
-
 impl Read for SerialPortStream {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.0.read(buf)
     }
 }
-
 
 impl ReadWithTimeout for SerialPortStream {
     fn read_with_timeout(&mut self, buf: &mut [u8], timeout: Option<Duration>) -> Result<usize> {
@@ -34,7 +30,6 @@ impl ReadWithTimeout for SerialPortStream {
         self.0.read(buf)
     }
 }
-
 
 impl Write for SerialPortStream {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {

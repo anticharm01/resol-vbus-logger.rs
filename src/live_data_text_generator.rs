@@ -1,23 +1,14 @@
 use std::fs::File;
 use std::io::Write;
 
-use resol_vbus::{
-    chrono::prelude::*,
-    DataSet,
-    Language,
-    Specification,
-};
+use resol_vbus::{chrono::prelude::*, DataSet, Language, Specification};
 
-
-use config::Config;
-use error::{Result};
-
+use crate::{config::Config, error::Result};
 
 pub struct LiveDataTextGenerator {
     pub spec: Specification,
     pub filename: String,
 }
-
 
 impl LiveDataTextGenerator {
     pub fn from_config(config: &Config) -> Result<LiveDataTextGenerator> {
@@ -27,10 +18,7 @@ impl LiveDataTextGenerator {
 
         let filename = config.live_data_text_output_filename.clone();
 
-        Ok(LiveDataTextGenerator {
-            spec,
-            filename,
-        })
+        Ok(LiveDataTextGenerator { spec, filename })
     }
 
     pub fn generate(&mut self, orig_data_set: &DataSet, _now: &DateTime<UTC>) -> Result<()> {
@@ -46,7 +34,16 @@ impl LiveDataTextGenerator {
             let packet_name = &field.packet_spec().name;
             let field_name = &field.field_spec().name;
 
-            write!(output, "{}_{};{};{};{}: {}\n", field.packet_spec().packet_id, field.field_spec().field_id, value, unit_text, packet_name, field_name)?;
+            writeln!(
+                output,
+                "{}_{};{};{};{}: {}",
+                field.packet_spec().packet_id,
+                field.field_spec().field_id,
+                value,
+                unit_text,
+                packet_name,
+                field_name
+            )?;
         }
 
         output.flush()?;
