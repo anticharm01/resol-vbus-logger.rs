@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::Write;
 
+use anyhow::Result;
 use resol_vbus::{chrono::prelude::*, DataSet, Language, Specification};
 
-use crate::{config::Config, error::Result};
+use crate::config::Config;
 
 pub struct LiveDataTextGenerator {
     pub spec: Specification,

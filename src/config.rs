@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::Read;
 
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use resol_vbus::SpecificationFile;
-
-use crate::error::Result;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -39,13 +37,14 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Config> {
-        let mut file = File::open("config.toml")?;
+        let mut file = File::open("config.toml").context("Unable to open config.toml")?;
 
         let mut config_string = String::new();
 
-        file.read_to_string(&mut config_string)?;
+        file.read_to_string(&mut config_string)
+            .context("Unable to read config.toml")?;
 
-        let config = toml::from_str(&config_string)?;
+        let config = toml::from_str(&config_string).context("Unable to parse config.toml")?;
 
         Ok(config)
     }

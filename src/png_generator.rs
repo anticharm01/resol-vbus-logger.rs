@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use image::{DynamicImage, Rgba};
 
 use imageproc::drawing::draw_text_mut;
@@ -9,7 +9,7 @@ use resol_vbus::{chrono::prelude::*, DataSet, Language, Specification};
 
 use rusttype::{Font, Scale};
 
-use crate::{config::Config, error::Result};
+use crate::config::Config;
 
 pub struct PngGenerator<'a> {
     pub spec: Specification,

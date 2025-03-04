@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use resol_vbus::{chrono::prelude::*, DataSet, Language, Specification};
 
 use sqlite::{Connection, State};
 
-use crate::{config::Config, error::Result};
+use crate::config::Config;
 
 enum Mode {
     Relational {

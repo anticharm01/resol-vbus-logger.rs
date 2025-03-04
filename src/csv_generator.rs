@@ -1,8 +1,9 @@
 use std::io::Write;
 
+use anyhow::{Context, Result};
 use resol_vbus::{chrono::prelude::*, id_hash, DataSet, Language, Specification};
 
-use crate::{config::Config, error::Result, timestamp_file_writer::TimestampFileWriter};
+use crate::{config::Config, timestamp_file_writer::TimestampFileWriter};
 
 pub struct CsvGenerator {
     pub spec: Specification,
@@ -12,7 +13,7 @@ pub struct CsvGenerator {
 
 impl CsvGenerator {
     pub fn from_config(config: &Config) -> Result<CsvGenerator> {
-        let spec_file = config.load_spec_file()?;
+        let spec_file = config.load_spec_file().context("Unable to load VSF file")?;
 
         let spec = Specification::from_file(spec_file, Language::De);
 

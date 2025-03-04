@@ -65,7 +65,6 @@ extern crate toml;
 
 mod config;
 mod csv_generator;
-mod error;
 mod live_data_text_generator;
 mod png_generator;
 mod serial_port_stream;
@@ -76,7 +75,7 @@ mod timestamp_file_writer;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context, Result};
 use resol_vbus::{
     chrono::prelude::*, Data, DataSet, Header, LiveDataStream, Packet, ReadWithTimeout,
     TcpConnector, ToPacketId,
@@ -85,7 +84,6 @@ use resol_vbus::{Language, Specification};
 
 use config::Config;
 use csv_generator::CsvGenerator;
-use error::Result;
 use live_data_text_generator::LiveDataTextGenerator;
 use png_generator::PngGenerator;
 use serial_port_stream::SerialPortStream;
@@ -122,13 +120,17 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(
     let mut data_set_settled_count = 0;
 
     debug!("Initializing PNG");
-    let png_generator = PngGenerator::from_config(config)?;
+    let png_generator =
+        PngGenerator::from_config(config).context("Unable to initialize PNG generator")?;
     debug!("Initializing CSV");
-    let mut csv_generator = CsvGenerator::from_config(config)?;
+    let mut csv_generator =
+        CsvGenerator::from_config(config).context("Unable to initialize CSV generator")?;
     debug!("Initializing Live Data Text");
-    let mut live_data_text_generator = LiveDataTextGenerator::from_config(config)?;
+    let mut live_data_text_generator = LiveDataTextGenerator::from_config(config)
+        .context("Unable to initialize live data text generator")?;
     debug!("Initializing SQLite");
-    let mut sqlite_logger = SqliteLogger::from_config(config)?;
+    let mut sqlite_logger =
+        SqliteLogger::from_config(config).context("Unable to initialize SQLite generator")?;
 
     let now = UTC::now();
 
@@ -144,22 +146,30 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(
         let now = UTC::now();
         if png_tick_source.process(now) && data_set_is_settled {
             debug!("PNG Tick");
-            png_generator.generate(&data_set, &now)?;
+            png_generator
+                .generate(&data_set, &now)
+                .context("Unable to generate PNG")?;
         }
 
         if csv_tick_source.process(now) && data_set_is_settled {
             debug!("CSV tick");
-            csv_generator.generate(&data_set, &now)?;
+            csv_generator
+                .generate(&data_set, &now)
+                .context("Unable to generate CSV")?;
         }
 
         if live_data_text_tick_source.process(now) && data_set_is_settled {
             debug!("Live Data Text tick");
-            live_data_text_generator.generate(&data_set, &now)?;
+            live_data_text_generator
+                .generate(&data_set, &now)
+                .context("Unable to generate live data text")?;
         }
 
         if sqlite_tick_source.process(now) && data_set_is_settled {
             debug!("SQlite tick");
-            sqlite_logger.log(&data_set, &now)?;
+            sqlite_logger
+                .log(&data_set, &now)
+                .context("Unable to log to SQLite")?;
         }
 
         if let Some(data) = lds.receive(500)? {
@@ -201,7 +211,9 @@ fn stream_live_data<R: Read + ReadWithTimeout, W: Write>(
                             .collect::<Vec<_>>()
                     );
 
-                    let spec_file = config.load_spec_file()?;
+                    let spec_file = config
+                        .load_spec_file()
+                        .context("Unable to load spec file")?;
                     let spec = Specification::from_file(spec_file, Language::De);
                     for field in spec.fields_in_data_set(&sorted_data_set) {
                         debug!(
@@ -228,7 +240,7 @@ fn run_main() -> Result<()> {
     env_logger::init();
 
     debug!("Loading config");
-    let config = Config::load()?;
+    let config = Config::load().context("Unable to load config")?;
 
     let channel = config.channel.unwrap_or(0);
 
@@ -236,7 +248,9 @@ fn run_main() -> Result<()> {
         debug!("Using serial port");
 
         debug!("Connecting serial port");
-        let port = serialport::new(path, 9600).open()?;
+        let port = serialport::new(path, 9600)
+            .open()
+            .context("Unable to open serial port")?;
 
         let reader = SerialPortStream::new(port.try_clone()?);
         let writer = SerialPortStream::new(port);
@@ -251,7 +265,7 @@ fn run_main() -> Result<()> {
         debug!("Using TCP stream");
 
         debug!("Connection TCP stream");
-        let stream = TcpStream::connect(address)?;
+        let stream = TcpStream::connect(address).context("Unable to connect to TCP stream")?;
 
         debug!("Performing VBus-over-TCP handshake");
         let mut tcp_connector = TcpConnector::new(stream);
